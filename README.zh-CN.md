@@ -157,11 +157,7 @@ Copy-Item .\skills\team-orchestration <DSH_HOME>\skills\team-orchestration -Recu
 
 ### 3. 重启 DSH
 
-```powershell
-# 使用你惯常的重启方式
-scripts\stop-dsh.ps1
-scripts\start-dsh.ps1
-```
+停止并启动你的 harness 实例(使用你惯常的重启方式——启动命令、服务管理器或 Web UI 的重启操作均可)。新会话会加载新预设。
 
 ---
 
@@ -236,8 +232,8 @@ Steps:
    <DSH_HOME>\.agent-presets\sisyphus-oracle\.
 3. Copy the whole `skills/team-orchestration/` directory to
    <DSH_HOME>\skills\team-orchestration\.
-4. Restart DSH (stop then start the harness; on Windows this repo's
-   reference scripts are scripts\stop-dsh.ps1 then scripts\start-dsh.ps1).
+4. Restart DSH (stop then start the harness using whatever restart
+   procedure this deployment normally uses).
 
 Verification (required, report the results):
 - Create a session with agentPreset "sisyphus": expect ok:true and no
