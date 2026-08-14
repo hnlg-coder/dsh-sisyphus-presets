@@ -1,0 +1,17 @@
+# Editor/OS noise
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+.vscode/
+
+# Logs
+logs/
+*.log
+
+# Local environment
+.env
+.env.local
+
+# Node
+node_modules/
