@@ -19,6 +19,8 @@ DeepSeek Harness 智能体预设:**Sisyphus**(编排者)与 **Sisyphus Oracle**(
 - [与官方预设对比](#与官方预设对比)
 - [与 oh-my-openagent(OMO)对比](#与-oh-my-openagentomo对比)
 - [安装](#安装)
+- [部署与应用](#部署与应用)
+- [AI 辅助部署提示词](#ai-辅助部署提示词)
 - [前置条件](#前置条件)
 - [模型策略](#模型策略)
 - [Sisyphus(编排者)](#sisyphus编排者)
@@ -160,6 +162,129 @@ Copy-Item .\skills\team-orchestration <DSH_HOME>\skills\team-orchestration -Recu
 scripts\stop-dsh.ps1
 scripts\start-dsh.ps1
 ```
+
+---
+
+## 部署与应用
+
+### 文件必须放到的位置
+
+| 文件 | 必须位于 |
+|---|---|
+| `sisyphus/`(整个目录) | `<DSH_HOME>\.agent-presets\sisyphus\` |
+| `sisyphus-oracle/`(整个目录) | `<DSH_HOME>\.agent-presets\sisyphus-oracle\` |
+| `skills/team-orchestration/`(整个目录) | `<DSH_HOME>\skills\team-orchestration\` |
+
+`DSH_HOME` 是 harness 家目录(启动脚本设置;本仓库参考机器上是 `D:\DeepSeek Harness\home`)。**必须复制整个目录**,而不是只复制里面的文件——预设目录携带自己的 `lane-models.js` 和 `restrict.js` 兄弟文件,composition 通过相对路径引用它们。
+
+### 将预设设为默认
+
+要让 `sisyphus` 成为所有新会话的默认预设,在 `settings.yaml` 中设置:
+
+```yaml
+agent-presets:
+  default: sisyphus
+```
+
+该值在每次创建会话时读取——仅此改动无需重启。你也可以保留官方默认,改为按会话选择预设。
+
+### 使用预设
+
+- **Web UI**:创建新会话时打开预设选择器,选择 **Sisyphus** 或 **Sisyphus Oracle**。
+- **API**:在 `session.create` 中传 `"agentPreset": "sisyphus"`(或 `"sisyphus-oracle"`):
+
+```powershell
+$body = '{"type":"client-request","rpcId":"t","method":"session.create","payload":{"workspaceId":"<ws-id>","agentPreset":"sisyphus"}}'
+Invoke-WebRequest -Uri "http://127.0.0.1:3080/api/session.create" -Method POST -ContentType "application/json" -Body $body -UseBasicParsing
+```
+
+- **切换空白会话**:尚未产生任何轮次的会话可通过 `agentPreset.select` 切换预设(已运行的会话锁定其预设)。
+- **重启说明**:修改 `lane-models.js`(固定车道模型)或预设目录内任何文件需要重启 DSH——composition 在预设挂载时读取。`settings.yaml` 的改动(默认预设、模型 provider)无需重启即生效。
+
+### 部署后检查清单
+
+1. 两个预设都能挂载:分别创建会话——期望 `ok: true`。
+2. Oracle 会话只显示只读工具(见[验证方法](#验证方法))。
+3. Sisyphus 会话暴露全部六条车道(`subagent_explore/oracle/vision/librarian/metis/momus`)以及 `workflow`、`ralph`、`run_code`、`cordis_*`。
+4. 车道模型解析正常:让 oracle 子代理自报 `{{model}}`——应与你的会话模型(或 `lane-models.js` 的固定值)一致。
+
+---
+
+## AI 辅助部署提示词
+
+如果你想用 AI 编码助手(Claude Code、opencode、Cursor 等)帮你部署这些预设,直接粘贴下面的提示词。它自包含:告诉 AI 精确的复制目标、位置和验证方式,无需额外上下文。
+
+### 提示词:部署预设
+
+```text
+Deploy the DSH Sisyphus presets to a DeepSeek Harness installation.
+
+Context:
+- The presets are in this repository: the `sisyphus/` and `sisyphus-oracle/`
+  directories (each is an agent preset = a directory with agent.cordis.yml
+  plus sibling files), and the `skills/team-orchestration/` directory
+  (a DSH skill with a SKILL.md and references/).
+- DSH_HOME is the harness home directory. On Windows it is typically
+  D:\DeepSeek Harness\home; on Linux/macOS it is $HOME/.dsh. Find the real
+  one by checking the launcher scripts for the DSH_HOME environment
+  variable, or look for the `profiles/` and `sessions/` directories.
+
+Steps:
+1. Copy the whole `sisyphus/` directory to <DSH_HOME>\.agent-presets\sisyphus\
+   (copy the directory itself, not just its files).
+2. Copy the whole `sisyphus-oracle/` directory to
+   <DSH_HOME>\.agent-presets\sisyphus-oracle\.
+3. Copy the whole `skills/team-orchestration/` directory to
+   <DSH_HOME>\skills\team-orchestration\.
+4. Restart DSH (stop then start the harness; on Windows this repo's
+   reference scripts are scripts\stop-dsh.ps1 then scripts\start-dsh.ps1).
+
+Verification (required, report the results):
+- Create a session with agentPreset "sisyphus": expect ok:true and no
+  "failed to mount" error.
+- Create a session with agentPreset "sisyphus-oracle": expect ok:true.
+- In the oracle session, prompt "List every tool name in your catalog" —
+  the visible tools must be exactly: read, read_image, glob, grep, lsp,
+  web_search, ask_user_question, schedule_create, schedule_delete,
+  schedule_list. There must be NO write/edit/pwsh/mcp__* tools.
+- In the sisyphus session, verify the six subagent lanes exist:
+  subagent_explore, subagent_oracle, subagent_vision, subagent_librarian,
+  subagent_metis, subagent_momus.
+
+Constraints:
+- Do NOT modify any file inside the preset directories after copying.
+- Do NOT create a git repo, do not push anything.
+- If a copy target already exists, report it and stop rather than
+  overwriting.
+```
+
+### 提示词:验证已有部署
+
+```text
+Verify that the DSH Sisyphus presets are correctly deployed on this
+DeepSeek Harness installation.
+
+Check:
+1. <DSH_HOME>\.agent-presets\sisyphus\ exists and contains
+   agent.cordis.yml + lane-models.js (plus preset.yml).
+2. <DSH_HOME>\.agent-presets\sisyphus-oracle\ exists and contains
+   agent.cordis.yml + restrict.js (plus preset.yml).
+3. <DSH_HOME>\skills\team-orchestration\ exists with SKILL.md and
+   references/ (hyperplan.js, security-research.js,
+   parallel-exploration.js, category-router.js).
+4. The presets mount: call session.create with each preset id and report
+   ok:true / any mount errors.
+5. sisyphus-oracle tool restriction is active: in an oracle session, ask
+   "List every tool name in your catalog" and confirm only read-only tools
+   are visible (no write/edit/pwsh/mcp__*).
+6. Lane model config is wired: check that sisyphus/agent.cordis.yml lane
+   rows reference lane-models.js via agentOptions !!js expressions, and
+   that lane-models.js has entries for all six lanes.
+
+Report a pass/fail table for each check with the evidence you found.
+```
+
+> 提示:第二个提示词在 DSH 升级后也很有用——预设 composition 和 `restrict.js` 位于 harness 家目录,升级重写 app 目录不会触碰它们,但重新验证成本很低。
 
 ---
 

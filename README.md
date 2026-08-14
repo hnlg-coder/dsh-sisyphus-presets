@@ -19,6 +19,8 @@ DeepSeek Harness agent presets: **Sisyphus** (orchestrator) and **Sisyphus Oracl
 - [Comparison with official presets](#comparison-with-official-presets)
 - [Comparison with oh-my-openagent (OMO)](#comparison-with-oh-my-openagent-omo)
 - [Installation](#installation)
+- [Deploying & using the presets](#deploying--using-the-presets)
+- [AI-assisted deployment prompt](#ai-assisted-deployment-prompt)
 - [Prerequisites](#prerequisites)
 - [Model policy](#model-policy)
 - [Sisyphus (orchestrator)](#sisyphus-orchestrator)
@@ -160,6 +162,132 @@ Copy-Item .\skills\team-orchestration <DSH_HOME>\skills\team-orchestration -Recu
 scripts\stop-dsh.ps1
 scripts\start-dsh.ps1
 ```
+
+---
+
+## Deploying & using the presets
+
+### Where the files must live
+
+| File | Must be at |
+|---|---|
+| `sisyphus/` (whole directory) | `<DSH_HOME>\.agent-presets\sisyphus\` |
+| `sisyphus-oracle/` (whole directory) | `<DSH_HOME>\.agent-presets\sisyphus-oracle\` |
+| `skills/team-orchestration/` (whole directory) | `<DSH_HOME>\skills\team-orchestration\` |
+
+`DSH_HOME` is the harness home directory (the launcher sets it; on this repo's reference machine it is `D:\DeepSeek Harness\home`). Keep the **whole directory**, not just the files inside — the preset directory carries its own `lane-models.js` and `restrict.js` siblings that the composition references by relative path.
+
+### Making a preset the default
+
+To make `sisyphus` the default preset for all new sessions, set it in `settings.yaml`:
+
+```yaml
+agent-presets:
+  default: sisyphus
+```
+
+The value is read per session creation — no restart needed for this change alone. You can also keep the official default and pick a preset per session instead.
+
+### Using the presets
+
+- **Web UI**: open the preset picker when creating a new session; choose **Sisyphus** or **Sisyphus Oracle**.
+- **API**: pass `"agentPreset": "sisyphus"` (or `"sisyphus-oracle"`) in `session.create`:
+
+```powershell
+$body = '{"type":"client-request","rpcId":"t","method":"session.create","payload":{"workspaceId":"<ws-id>","agentPreset":"sisyphus"}}'
+Invoke-WebRequest -Uri "http://127.0.0.1:3080/api/session.create" -Method POST -ContentType "application/json" -Body $body -UseBasicParsing
+```
+
+- **Switching a blank session**: a session that has not produced any turns yet can switch presets via `agentPreset.select` (a session that has run is locked to its preset).
+- **Restart note**: changing `lane-models.js` (pinned lane models) or any file inside a preset directory requires a DSH restart — the composition is read at preset mount. `settings.yaml` changes (default preset, model provider) apply without restart.
+
+### Post-deployment checklist
+
+1. Both presets mount: create a session with each — expect `ok: true`.
+2. Oracle session shows only read-only tools (see [Verification](#verification)).
+3. Sisyphus session exposes all six lanes (`subagent_explore/oracle/vision/librarian/metis/momus`) plus `workflow`, `ralph`, `run_code`, `cordis_*`.
+4. Lane models resolve: ask an oracle subagent to self-report `{{model}}` — should match your session model (or the `lane-models.js` pin).
+
+---
+
+## AI-assisted deployment prompt
+
+If you want an AI coding assistant (Claude Code, opencode, Cursor, etc.) to deploy these presets for you, paste the prompt below. It is written to be self-contained: it tells the AI exactly what to copy, where, and how to verify — no further context needed.
+
+### Prompt: deploy the presets
+
+```text
+Deploy the DSH Sisyphus presets to a DeepSeek Harness installation.
+
+Context:
+- The presets are in this repository: the `sisyphus/` and `sisyphus-oracle/`
+  directories (each is an agent preset = a directory with agent.cordis.yml
+  plus sibling files), and the `skills/team-orchestration/` directory
+  (a DSH skill with a SKILL.md and references/).
+- DSH_HOME is the harness home directory. On Windows it is typically
+  D:\DeepSeek Harness\home; on Linux/macOS it is $HOME/.dsh. Find the real
+  one by checking the launcher scripts for the DSH_HOME environment
+  variable, or look for the `profiles/` and `sessions/` directories.
+
+Steps:
+1. Copy the whole `sisyphus/` directory to <DSH_HOME>\.agent-presets\sisyphus\
+   (copy the directory itself, not just its files).
+2. Copy the whole `sisyphus-oracle/` directory to
+   <DSH_HOME>\.agent-presets\sisyphus-oracle\.
+3. Copy the whole `skills/team-orchestration/` directory to
+   <DSH_HOME>\skills\team-orchestration\.
+4. Restart DSH (stop then start the harness; on Windows this repo's
+   reference scripts are scripts\stop-dsh.ps1 then scripts\start-dsh.ps1).
+
+Verification (required, report the results):
+- Create a session with agentPreset "sisyphus": expect ok:true and no
+  "failed to mount" error.
+- Create a session with agentPreset "sisyphus-oracle": expect ok:true.
+- In the oracle session, prompt "List every tool name in your catalog" —
+  the visible tools must be exactly: read, read_image, glob, grep, lsp,
+  web_search, ask_user_question, schedule_create, schedule_delete,
+  schedule_list. There must be NO write/edit/pwsh/mcp__* tools.
+- In the sisyphus session, verify the six subagent lanes exist:
+  subagent_explore, subagent_oracle, subagent_vision, subagent_librarian,
+  subagent_metis, subagent_momus.
+
+Constraints:
+- Do NOT modify any file inside the preset directories after copying.
+- Do NOT create a git repo, do not push anything.
+- If a copy target already exists, report it and stop rather than
+  overwriting.
+```
+
+### Prompt: verify an existing deployment
+
+```text
+Verify that the DSH Sisyphus presets are correctly deployed on this
+DeepSeek Harness installation.
+
+Check:
+1. <DSH_HOME>\.agent-presets\sisyphus\ exists and contains
+   agent.cordis.yml + lane-models.js (plus preset.yml).
+2. <DSH_HOME>\.agent-presets\sisyphus-oracle\ exists and contains
+   agent.cordis.yml + restrict.js (plus preset.yml).
+3. <DSH_HOME>\skills\team-orchestration\ exists with SKILL.md and
+   references/ (hyperplan.js, security-research.js,
+   parallel-exploration.js, category-router.js).
+4. The presets mount: call session.create with each preset id and report
+   ok:true / any mount errors.
+5. sisyphus-oracle tool restriction is active: in an oracle session, ask
+   "List every tool name in your catalog" and confirm only read-only tools
+   are visible (no write/edit/pwsh/mcp__*).
+6. Lane model config is wired: check that sisyphus/agent.cordis.yml lane
+   rows reference lane-models.js via agentOptions !!js expressions, and
+   that lane-models.js has entries for all six lanes.
+
+Report a pass/fail table for each check with the evidence you found.
+```
+
+> Tip: the second prompt is also useful after a DSH upgrade — preset
+> compositions and `restrict.js` live in the harness home, so an upgrade
+> that rewrites the app directory does not touch them, but re-verifying is
+> cheap.
 
 ---
 
