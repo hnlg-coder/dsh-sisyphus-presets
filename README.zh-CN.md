@@ -16,6 +16,8 @@ DeepSeek Harness 智能体预设:**Sisyphus**(编排者)与 **Sisyphus Oracle**(
 ## 目录
 
 - [功能特性](#功能特性)
+- [与官方预设对比](#与官方预设对比)
+- [与 oh-my-openagent(OMO)对比](#与-oh-my-openagentomo对比)
 - [安装](#安装)
 - [前置条件](#前置条件)
 - [模型策略](#模型策略)
@@ -61,7 +63,75 @@ DeepSeek Harness 智能体预设:**Sisyphus**(编排者)与 **Sisyphus Oracle**(
 
 ---
 
-## 安装
+## 与官方预设对比
+
+DSH 官方自带四个预设。以下是 `sisyphus` / `sisyphus-oracle` 与它们的关系:
+
+| 能力 | standard | code | cordis | minimal | **sisyphus** | **sisyphus-oracle** |
+|---|---|---|---|---|---|---|
+| Persona | 短 | 短 | 长(两平面) | 固定(`complete: true`) | ~500 行编排协议 | 只读顾问 |
+| bash / pwsh | ✅ | ✅ | ✅ | 持久 PTY | ✅ | ✅(restrict.js 屏蔽) |
+| fs 读写 | ✅ | ✅ | ✅ | fs-local | ✅ | 只读(restrict.js) |
+| str_replace_editor | ❌ | ❌ | ❌ | ✅ | ✅ | ❌ |
+| 后台任务 | ✅ | ✅ | ✅ | ❌ | ✅ | ❌ |
+| goal | ✅ | ✅ | ✅ | ❌ | ✅ | ❌ |
+| 计划模式 | ✅ | ✅ | ✅ | ❌ | ✅ | ❌ |
+| 压缩 | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ |
+| skills | ✅ | ✅ | ✅ + 编辑技能 | ❌ | ✅ | ❌ |
+| 子代理委派 | ✅ | ✅ | ✅ | ❌ | ✅ + **6 条角色车道** | ❌ |
+| workflow / ralph | ✅ | ✅ | ✅ | ❌ | ✅ | ❌ |
+| run_code(Code Mode) | ❌ | ✅ | ❌ | ❌ | ✅(mode: both) | ❌ |
+| tool-cordis(自改运行时) | ❌ | ❌ | ✅ | ❌ | ✅ | ❌ |
+| lsp | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ |
+| 会话检索 | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ |
+| 角色车道(explore/oracle/vision/librarian/metis/momus) | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ |
+| 注册表级只读强制 | ❌ | ❌ | ❌ | ❌ | ❌ | ✅(restrict.js) |
+| 车道模型集中配置(lane-models.js) | ❌ | ❌ | ❌ | ❌ | ✅ | 不适用 |
+
+**如何选择**:
+
+- **standard** — 日常编码的纯净基线。
+- **code** — 与 standard 相同,但通过 `run_code` 批量执行多步操作。
+- **cordis** — 想让 agent 自己编写/修改 DSH 预设时(自引用工具集 + 编辑技能)。
+- **minimal** — 固定提示词、两个持久工具,确定性优先,无任何 agent 机制。
+- **sisyphus** — 需要编排能力时:意图门、六条专家车道、METIS→计划→MOMUS 闭环、并行委派、分类路由。是 standard 的超集,另含 LSP/会话检索/run_code/cordis。
+- **sisyphus-oracle** — 需要"零副作用硬保证"的咨询时(注册表级工具屏蔽)。
+
+---
+
+## 与 oh-my-openagent(OMO)对比
+
+`sisyphus` 是 OMO 的 Sisyphus 工作流向 DSH 平台的移植。两者共享编排**哲学**,但**机制**不同:
+
+| 方面 | oh-my-openagent(opencode 插件) | DSH Sisyphus | 说明 |
+|---|---|---|---|
+| Agent 构建 | 动态(`createSisyphusAgent(model, availableAgents, tools, skills, categories)`——提示词随模型族变化并注入实时环境) | 静态 persona(手写、模型无关) | DSH 预设是声明式文件,无运行时提示词生成 |
+| 委派 API | `task()` + `category`(8 类别)+ `subagent_type`(explore/librarian/oracle/metis/momus) | `subagent` 工具 + 6 条固定车道(explore/oracle/vision/librarian/metis/momus) | 角色集相同,载体不同 |
+| 动态分类路由 | 原生 `category` 参数调用时选模型 | **workflow** 脚本 `agent(prompt, {provider, model})` 运行时覆盖,`category-router.js` 模板 | DSH 用 workflow 引擎实现等价能力 |
+| Metis / Momus | 预规划顾问 + 计划评审(昂贵模型) | ✅ 移植为 `subagent_metis` / `subagent_momus` 车道 | 规划闭环:METIS → 计划 → MOMUS |
+| Librarian | 外部参考 agent(GitHub/Context7/Web) | ✅ 移植为 `subagent_librarian` 车道(web_search) | |
+| Vision | multimodal-looker | ✅ `subagent_vision` 车道 | |
+| 技能注入 | 动态 `availableSkills` 注入 persona | 静态技能引用 + `tool-skill` | persona 写使用规则,非实时目录 |
+| 会话延续 | continuation session id | 持久子代理 id + `send_message` | 等价 |
+| 并行后台探索 | `run_in_background` + `background_output` | `backgroundMode: continuable` + 完成通知 | 等价 |
+| 工作流引擎 | 无原生等价(hyperplan = skill 模拟) | **原生 `workflow` 工具**(JS 编排脚本) | DSH 优势 |
+| Ralph 循环 | 无原生等价 | **原生 `ralph` 工具**(自引用循环) | DSH 优势 |
+| 自我修改 | 无 | **`tool-cordis`**(inspect/define/run/stop/undefine 活运行时) | DSH 优势 |
+| Code Mode | 无 | **`run_code`**(TypeScript SDK 批量执行) | DSH 优势 |
+| 只读保证 | 仅 persona | **注册表级**(`restrict.js` 从目录屏蔽工具) | sisyphus-oracle 的 DSH 优势 |
+| 许可证 | SUL-1.0 | SUL-1.0(衍生) | 见 LICENSE |
+
+**OMO 有而 DSH Sisyphus 没有的**:
+
+- 按模型族动态生成提示词(OMO 为 kimi/gpt/claude 各烘焙不同提示词)。
+- 实时环境注入(persona 直接列出会话真实可用的 agents/tools/skills)。
+- `task()` 的原生 `category` 参数(DSH 需要 workflow 脚本实现等价)。
+
+**DSH Sisyphus 有而 OMO 没有的**:
+
+- 原生 `workflow` 引擎、`ralph` 循环、`run_code`、`tool-cordis` 自我修改。
+- 注册表级只读强制(restrict.js)。
+- 声明式预设文件——复制目录即安装,无需构建步骤。
 
 ### 1. 安装预设
 

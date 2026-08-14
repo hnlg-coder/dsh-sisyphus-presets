@@ -16,6 +16,8 @@ DeepSeek Harness agent presets: **Sisyphus** (orchestrator) and **Sisyphus Oracl
 ## Table of Contents
 
 - [Features](#features)
+- [Comparison with official presets](#comparison-with-official-presets)
+- [Comparison with oh-my-openagent (OMO)](#comparison-with-oh-my-openagent-omo)
 - [Installation](#installation)
 - [Prerequisites](#prerequisites)
 - [Model policy](#model-policy)
@@ -61,7 +63,75 @@ DeepSeek Harness agent presets: **Sisyphus** (orchestrator) and **Sisyphus Oracl
 
 ---
 
-## Installation
+## Comparison with official presets
+
+DSH ships four official presets. Here is how `sisyphus` / `sisyphus-oracle` relate to them:
+
+| Capability | standard | code | cordis | minimal | **sisyphus** | **sisyphus-oracle** |
+|---|---|---|---|---|---|---|
+| Persona | short | short | long (two-plane) | fixed (`complete: true`) | ~500-line orchestrator protocol | read-only consultant |
+| bash / pwsh | ✅ | ✅ | ✅ | persistent PTY | ✅ | ✅ (masked by restrict.js) |
+| fs read/write | ✅ | ✅ | ✅ | fs-local | ✅ | read-only (restrict.js) |
+| str_replace_editor | ❌ | ❌ | ❌ | ✅ | ✅ | ❌ |
+| background jobs | ✅ | ✅ | ✅ | ❌ | ✅ | ❌ |
+| goal | ✅ | ✅ | ✅ | ❌ | ✅ | ❌ |
+| plan mode | ✅ | ✅ | ✅ | ❌ | ✅ | ❌ |
+| compaction | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ |
+| skills | ✅ | ✅ | ✅ + authoring skill | ❌ | ✅ | ❌ |
+| subagent delegation | ✅ | ✅ | ✅ | ❌ | ✅ + **6 role lanes** | ❌ |
+| workflow / ralph | ✅ | ✅ | ✅ | ❌ | ✅ | ❌ |
+| run_code (Code Mode) | ❌ | ✅ | ❌ | ❌ | ✅ (mode: both) | ❌ |
+| tool-cordis (self-modify) | ❌ | ❌ | ✅ | ❌ | ✅ | ❌ |
+| lsp | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ |
+| session recall | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ |
+| role lanes (explore/oracle/vision/librarian/metis/momus) | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ |
+| registry-level read-only enforcement | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ (restrict.js) |
+| per-lane model config (lane-models.js) | ❌ | ❌ | ❌ | ❌ | ✅ | n/a |
+
+**How to choose**:
+
+- **standard** — clean baseline for everyday coding.
+- **code** — same as standard, but batch multi-step work through `run_code`.
+- **cordis** — when you want the agent to author/modify DSH presets itself (self-referential toolset + authoring skill).
+- **minimal** — fixed prompt, two persistent tools, maximum determinism, no agent machinery.
+- **sisyphus** — when you want orchestration: intent gating, six expert lanes, METIS→plan→MOMUS loop, parallel delegation, category routing. Superset of standard's tools plus LSP/session-recall/run_code/cordis.
+- **sisyphus-oracle** — when you want consultation with a hard guarantee of zero side effects (registry-level tool masking).
+
+---
+
+## Comparison with oh-my-openagent (OMO)
+
+`sisyphus` is a port of OMO's Sisyphus workflow to the DSH platform. It shares the orchestration *philosophy* but differs in *mechanisms*:
+
+| Aspect | oh-my-openagent (opencode plugin) | DSH Sisyphus | Notes |
+|---|---|---|---|
+| Agent construction | dynamic (`createSisyphusAgent(model, availableAgents, tools, skills, categories)` — prompt varies by model family and injects live environment) | static persona (hand-written, model-agnostic) | DSH presets are declarative files; no runtime prompt generation |
+| Delegation API | `task()` + `category` (8 categories) + `subagent_type` (explore/librarian/oracle/metis/momus) | `subagent` tool + 6 fixed lanes (explore/oracle/vision/librarian/metis/momus) | same role set, different carrier |
+| Dynamic category routing | native `category` parameter selects model at call time | **workflow** script `agent(prompt, {provider, model})` — runtime override, `category-router.js` template | DSH equivalent implemented via workflow engine |
+| Metis / Momus | pre-planning consultant + plan critic (expensive models) | ✅ ported as `subagent_metis` / `subagent_momus` lanes | planning loop: METIS → plan → MOMUS |
+| Librarian | external reference agent (GitHub/Context7/Web) | ✅ ported as `subagent_librarian` lane (web_search) | |
+| Vision | multimodal-looker | ✅ `subagent_vision` lane | |
+| Skill injection | dynamic `availableSkills` injected into persona | static skill references + `tool-skill` | persona lists skill usage rules, not a live catalog |
+| Session continuity | continuation session id | `send_message` on durable subagent id | equivalent |
+| Parallel background exploration | `run_in_background` + `background_output` | `backgroundMode: continuable` + completion notice | equivalent |
+| Workflow engine | no native equivalent (hyperplan = skill simulation) | **native `workflow` tool** (JS orchestration scripts) | DSH advantage |
+| Ralph loop | no native equivalent | **native `ralph` tool** (self-referential loop) | DSH advantage |
+| Self-modification | none | **`tool-cordis`** (inspect/define/run/stop/undefine live runtime) | DSH advantage |
+| Code Mode | none | **`run_code`** (TypeScript SDK batch execution) | DSH advantage |
+| Read-only guarantee | persona-only | **registry-level** (`restrict.js` masks tools from the catalog) | DSH advantage for sisyphus-oracle |
+| License | SUL-1.0 | SUL-1.0 (derivative) | see LICENSE |
+
+**What OMO has that DSH Sisyphus does not**:
+
+- Dynamic prompt generation per model family (OMO bakes different prompt bodies for kimi/gpt/claude families).
+- Live environment injection (persona literally lists the session's real available agents/tools/skills).
+- Native `category` parameter on `task()` (DSH needs a workflow script for the equivalent).
+
+**What DSH Sisyphus has that OMO does not**:
+
+- Native `workflow` engine, `ralph` loop, `run_code`, `tool-cordis` self-modification.
+- Registry-level read-only enforcement (restrict.js).
+- Declarative preset files that install by copying a directory (no build step).
 
 ### 1. Install the presets
 
