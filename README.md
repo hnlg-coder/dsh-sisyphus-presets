@@ -347,6 +347,26 @@ For multi-domain tasks, the `workflow` tool's `agent(prompt, { provider, model }
 | `artistry` / `writing` / `quick` / `unspecified-low` | deepseek-v4-flash |
 | `unspecified-high` / unset / `inherit` | current session model |
 
+### Why these two JS files exist (model indirection)
+
+You may wonder: why not just write the model into `agent.cordis.yml` directly? Three reasons force an **indirection layer** — a JS file that maps lanes/categories to actual models:
+
+1. **Presets are declarative, not executable.** `agent.cordis.yml` is a static YAML declaration read once at preset mount. It cannot compute, read config, or branch — so a model choice that should follow the deployment's providers cannot be expressed in the YAML itself.
+
+2. **Hardcoded model names break portability.** A preset that says `model: deepseek-v4-pro` fails on any deployment whose `settings.yaml` does not define that model or whose provider key differs. By keeping the mapping in a JS file that ships with defaults of `null` (inherit the session model), the preset runs anywhere; the user only edits one small file to opt into fixed routing.
+
+3. **The two mechanisms live in two different execution environments:**
+
+   - `lane-models.js` is read by the **DSH loader** at preset mount: each lane's `agentOptions` in `agent.cordis.yml` is a `!!js` expression that loads the file via `createRequire` and picks that lane's entry. The loader environment has `require`, so the mapping can live in a separate file and stay out of the YAML.
+   - `category-router.js` is a **workflow script** executed inside the workflow engine's sandbox — *no* `require`, no filesystem, no Node APIs. The route table therefore must live inline in the script. That is why its defaults are `null` (inherit) rather than pointing at an external file.
+
+So the two files are the same idea applied to two different carriers: **keep the preset portable by default, and give the user one small, well-documented place to pin real models.**
+
+| File | Carrier | Environment | Why a JS file at all |
+|---|---|---|---|
+| `lane-models.js` | fixed `subagent_*` lanes | DSH loader (has `require`) | `agent.cordis.yml` is static YAML; model mapping must be computed at mount and stay user-editable without touching YAML structure |
+| `category-router.js` | workflow runtime routing | workflow sandbox (no `require`) | workflow scripts cannot read files, so the table is inline; shipped as all-`null` (inherit) to stay portable |
+
 ---
 
 ## Sisyphus (orchestrator) — what it does

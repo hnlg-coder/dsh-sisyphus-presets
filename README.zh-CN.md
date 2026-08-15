@@ -23,6 +23,7 @@ DeepSeek Harness 智能体预设:**Sisyphus**(编排者)与 **Sisyphus Oracle**(
 - [AI 辅助部署提示词](#ai-辅助部署提示词)
 - [前置条件](#前置条件)
 - [模型策略](#模型策略)
+- [为什么需要这两个 JS 文件(模型间接层)](#为什么需要这两个-js-文件模型间接层)
 - [Sisyphus(编排者)](#sisyphus编排者)
 - [Sisyphus Oracle(只读顾问)](#sisyphus-oracle只读顾问)
 - [验证方法](#验证方法)
@@ -343,6 +344,26 @@ module.exports = {
 | `ultrabrain` / `deep` | deepseek-v4-pro(仅真硬推理) |
 | `artistry` / `writing` / `quick` / `unspecified-low` | deepseek-v4-flash |
 | `unspecified-high` / 未传 / `inherit` | 当前会话模型 |
+
+### 为什么需要这两个 JS 文件(模型间接层)
+
+你可能会问:为什么不直接把模型写进 `agent.cordis.yml`?有三个原因迫使引入**间接层**——用一个 JS 文件把车道/类别映射到实际模型:
+
+1. **预设是声明式的,不是可执行的。** `agent.cordis.yml` 是静态 YAML 声明,在预设挂载时读取一次。它不能计算、不能读配置、不能分支——所以"跟随部署的 provider 选择模型"这类逻辑无法在 YAML 本身表达。
+
+2. **硬编码模型名会破坏可移植性。** 一个写着 `model: deepseek-v4-pro` 的预设,在任何 `settings.yaml` 未定义该模型、或 provider key 不同的部署上都会失败。把映射放在 JS 文件里、默认值为 `null`(继承会话模型),预设就能在任何地方运行;用户只需编辑一个小文件即可选择固定路由。
+
+3. **两种机制活在两个不同的执行环境中:**
+
+   - `lane-models.js` 由 **DSH loader** 在预设挂载时读取:`agent.cordis.yml` 中每条车道的 `agentOptions` 是一个 `!!js` 表达式,通过 `createRequire` 加载该文件并取对应车道条目。loader 环境有 `require`,所以映射可以放在独立文件中,不用塞进 YAML。
+   - `category-router.js` 是 **workflow 脚本**,在 workflow 引擎的沙箱中执行——**没有** `require`、没有文件系统、没有 Node API。因此路由表必须内联在脚本里。这就是它默认全 `null`(继承)而不是指向外部文件的原因。
+
+所以这两个文件是同一个思路应用到两个不同的载体:**默认保持预设可移植,同时给用户一个小的、文档完善的、可以固定真实模型的地方。**
+
+| 文件 | 载体 | 执行环境 | 为什么需要 JS 文件 |
+|---|---|---|---|
+| `lane-models.js` | 固定 `subagent_*` 车道 | DSH loader(有 `require`) | `agent.cordis.yml` 是静态 YAML;模型映射必须在挂载时计算,且不触碰 YAML 结构即可用户编辑 |
+| `category-router.js` | workflow 运行时路由 | workflow 沙箱(无 `require`) | workflow 脚本不能读文件,所以表内联;发布版全 `null`(继承)以保持可移植 |
 
 ---
 
