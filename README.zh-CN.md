@@ -332,9 +332,11 @@ module.exports = {
 
 ### 运行时分类路由(workflow)
 
-对于多领域任务,`workflow` 工具的 `agent(prompt, { provider, model })` 支持**运行时模型覆盖**。`team-orchestration` skill 内置 `references/category-router.js` 模板,把每个单元路由到其类别对应的模型:
+对于多领域任务,`workflow` 工具的 `agent(prompt, { provider, model })` 支持**运行时模型覆盖**。`team-orchestration` skill 内置 `references/category-router.js` 模板,把每个单元路由到其类别对应的模型。
 
-| category | 模型 |
+**发布版路由表完全可移植:每个类别默认 `null` = 继承当前会话模型,零硬编码 provider/模型名。** 要启用按域路由,编辑 `category-router.js` 中的 `CATEGORY_ROUTE` 表(workflow 脚本运行在沙箱中、无 `require`,路由表必须内联)。示例配置:
+
+| category | 模型(示例) |
 |---|---|
 | `visual-engineering` | mimo-v2.5(多模态) |
 | `ultrabrain` / `deep` | deepseek-v4-pro(仅真硬推理) |

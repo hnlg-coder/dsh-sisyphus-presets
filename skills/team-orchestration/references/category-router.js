@@ -17,28 +17,42 @@
 
 // ROUTE TABLE - category -> { provider, model }.
 // Same shape as opencode's category system: domain-optimized models.
-// Keep in sync with settings.yaml llm-pi-ai.providers model ids.
-// Cost policy (2026-08-15): pro reserved for genuinely hard reasoning
-// (ultrabrain/deep). Generation-type tasks (artistry/writing) run on flash;
-// unclassified/high-effort fallbacks inherit the user's session model.
+//
+// PUBLISHED DEFAULT (portable): every entry is null = INHERIT the current
+// session's model route. This template ships with ZERO hardcoded provider or
+// model names, so it works on any DSH installation. To enable per-domain
+// routing, replace any null with { provider, model } using keys from your
+// own settings.yaml -> llm-pi-ai.providers. Example configuration:
+//
+//   "visual-engineering": { provider: "opencode-go", model: "mimo-v2.5" },   // multimodal
+//   ultrabrain:           { provider: "opencode-go", model: "deepseek-v4-pro" },  // heavy reasoning
+//   deep:                 { provider: "opencode-go", model: "deepseek-v4-pro" },
+//   artistry:             { provider: "opencode-go", model: "deepseek-v4-flash" },
+//   quick:                { provider: "opencode-go", model: "deepseek-v4-flash" },
+//   "unspecified-low":    { provider: "opencode-go", model: "deepseek-v4-flash" },
+//   writing:              { provider: "opencode-go", model: "deepseek-v4-flash" },
+//
+// Cost policy: pro only for genuinely hard reasoning; generation-type tasks
+// (artistry/writing) and trivial tasks run on the cheap model; unclassified
+// fallbacks inherit the session model.
 const CATEGORY_ROUTE = {
   // Visual / UI / CSS / animation / design -> multimodal model (image input).
-  "visual-engineering": { provider: "opencode-go", model: "mimo-v2.5" },
+  "visual-engineering": null,
   // Hard logic, architecture, algorithms -> heavy-reasoning model.
-  ultrabrain: { provider: "opencode-go", model: "deepseek-v4-pro" },
+  ultrabrain: null,
   // Deep research + autonomous implementation -> heavy-reasoning model.
-  deep: { provider: "opencode-go", model: "deepseek-v4-pro" },
+  deep: null,
   // Adversarial / creative problem solving -> cheap model (high error tolerance).
-  artistry: { provider: "opencode-go", model: "deepseek-v4-flash" },
+  artistry: null,
   // Trivial single-file changes -> cheap model.
-  quick: { provider: "opencode-go", model: "deepseek-v4-flash" },
+  quick: null,
   // General low-effort -> cheap model.
-  "unspecified-low": { provider: "opencode-go", model: "deepseek-v4-flash" },
+  "unspecified-low": null,
   // General high-effort, unclassified -> inherit the user's session model
   // (not pro): an unclassified task does not justify a pro upgrade by itself.
   "unspecified-high": null,
   // Prose / documentation / technical writing -> cheap model (generation, not reasoning).
-  writing: { provider: "opencode-go", model: "deepseek-v4-flash" },
+  writing: null,
 };
 
 // Fallback when a unit omits or misspells its category: INHERIT the current

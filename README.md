@@ -335,9 +335,11 @@ module.exports = {
 
 ### Runtime category routing (workflow)
 
-For multi-domain tasks, the `workflow` tool's `agent(prompt, { provider, model })` supports **runtime model overrides**. The `team-orchestration` skill ships `references/category-router.js` — a template that routes each unit to the model its category deserves:
+For multi-domain tasks, the `workflow` tool's `agent(prompt, { provider, model })` supports **runtime model overrides**. The `team-orchestration` skill ships `references/category-router.js` — a template that routes each unit to the model its category deserves.
 
-| category | model |
+**The shipped route table is fully portable: every category defaults to `null` = inherit the current session model, with zero hardcoded provider/model names.** To enable per-domain routing, edit the `CATEGORY_ROUTE` table in `category-router.js` (a workflow script — the table must stay inline because workflow scripts run in a sandbox without `require`). Example configuration:
+
+| category | model (example) |
 |---|---|
 | `visual-engineering` | mimo-v2.5 (multimodal) |
 | `ultrabrain` / `deep` | deepseek-v4-pro (heavy reasoning only) |
