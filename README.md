@@ -317,10 +317,11 @@ Each lane's model is resolved from `sisyphus/lane-models.js` (a plain JS module 
 
 ```js
 // sisyphus/lane-models.js
+// Replace <your-provider> with a key from YOUR settings.yaml -> llm-pi-ai.providers.
 module.exports = {
-  explore:   null,                                                    // inherit
-  oracle:    { provider: 'deepseek-official', model: 'deepseek-v4-pro' },  // pinned example
-  vision:    { provider: 'opencode-go', model: 'mimo-v2.5' },         // read_image needs multimodal
+  explore:   null,                                                          // inherit
+  oracle:    { provider: '<your-provider>', model: '<heavy-reasoning-model>' },  // pinned example
+  vision:    { provider: '<your-provider>', model: '<multimodal-model>' },  // read_image needs multimodal
   librarian: null,
   metis:     null,
   momus:     null,

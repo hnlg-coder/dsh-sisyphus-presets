@@ -314,10 +314,11 @@ Report a pass/fail table for each check with the evidence you found.
 
 ```js
 // sisyphus/lane-models.js
+// 将 <your-provider> 替换为你自己的 settings.yaml → llm-pi-ai.providers 中的 key。
 module.exports = {
-  explore:   null,                                                    // 继承
-  oracle:    { provider: 'deepseek-official', model: 'deepseek-v4-pro' },  // 固定示例
-  vision:    { provider: 'opencode-go', model: 'mimo-v2.5' },         // read_image 需多模态
+  explore:   null,                                                          // 继承
+  oracle:    { provider: '<your-provider>', model: '<heavy-reasoning-model>' },  // 固定示例
+  vision:    { provider: '<your-provider>', model: '<multimodal-model>' },  // read_image 需多模态
   librarian: null,
   metis:     null,
   momus:     null,
